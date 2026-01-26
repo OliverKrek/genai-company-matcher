@@ -12,10 +12,10 @@ class SqliteCompanyRepository(CompanyRepository):
         super().__init__()
         self.db_path = db_path
 
-    def _conn(self):
+    def _conn(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
     
-    def get_by_isin(self, isin):
+    def get_by_isin(self, isin: str) -> Company:
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT lei FROM isin_lei_map WHERE isin = ?",

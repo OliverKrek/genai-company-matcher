@@ -19,7 +19,7 @@ def main():
     parser = argparse.ArgumentParser(prog="genai-matcher", description="GenAI company matcher")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # The tool provides a single interface to creation, updating, and search
+    # The subparser provides and interface to the specific modules like search, initiation, etc.
     init_cmd = subparsers.add_parser("init")
     init_cmd.add_argument("--target", choices=["sqlite", "vectordb", "all"])
     init_cmd.add_argument("--recreate", action="store_true")
