@@ -8,41 +8,132 @@ from core.interfaces import CompanyRepository
 from infrastructure.utils import import_csv_to_sqlite
 
 class SqliteCompanyRepository(CompanyRepository):
+    """SQLite-backed implementation of the CompanyRepository interface."""
+
     def __init__(self, db_path: str):
+        """
+        Initialize the repository with a path to the SQLite database file.
+        
+        Args:
+            dp_path: Path of the repository
+        """
         super().__init__()
         self.db_path = db_path
 
     def _conn(self) -> sqlite3.Connection:
+        """Return a new SQLite connection to the configured database."""
         return sqlite3.connect(self.db_path)
     
     def get_by_isin(self, isin: str) -> Company:
+        """
+        Return the company associated with the given ISIN.
+        
+        Args:
+            isin: ISIN for which to search
+        
+        Returns:
+            Company: metadata structure of the company
+
+        Raises:
+            ValueError if no matching value found.
+        """
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT lei FROM isin_lei_map WHERE isin = ?",
                 (isin,)
-            ).fetchall()
+            ).fetchone()
 
-            company_data = conn.execute(
+            if row is None:
+                raise ValueError(f"No LEI found for ISIN {isin}")
+            
+            lei = row[0]
+            company_row = conn.execute(
                 "SELECT lei, registration_status, entity_status, legal_name, city, country, category FROM lei_metadata WHERE lei = ?",
-                (row[0][0],)
-            ).fetchall()
-            company_data = company_data[0]
-            company = Company(company_data[0], company_data[1], company_data[2],
-                              company_data[3], company_data[4], company_data[5], company_data[6])
+                (lei,)
+            ).fetchone()
+
+            if company_row is None:
+                raise ValueError(f"No company metadata found for LEI {lei}")
+
+            company = Company(company_row[0], company_row[1], company_row[2],
+                              company_row[3], company_row[4], company_row[5], company_row[6])
         return company
     
+    def get_by_isins(self, isins: List[str]) -> List[Company | None]:
+        """
+        Return a list of comapnies that match the provided list of isins.
+        
+        Args:
+            isins: List of isins to lookup
+        
+        Returns:
+            List[Company]: returns a list of mateches otherwise none
+        """
+        with self._conn() as conn:
+            isin_placeholders = ", ".join(["?"] * len(isins))
+            lei_rows = conn.execute(
+                f"""
+                SELECT lei
+                FROM isin_lei_map
+                WHERE isin IN ({isin_placeholders})
+                """,
+                isins,
+            ).fetchall()
+
+            leis = [row[0] for row in lei_rows]
+
+            if not leis:
+                return []
+
+            lei_placeholders = ", ".join(["?"] * len(leis))
+            company_rows = conn.execute(
+                f"""
+                SELECT
+                    lei,
+                    registration_status,
+                    entity_status,
+                    legal_name,
+                    city,
+                    country,
+                    category
+                FROM lei_metadata
+                WHERE lei IN ({lei_placeholders})
+                """,
+                leis,
+            ).fetchall()
+
+            companies = [
+                Company(row[0], row[1], row[2], row[3], row[4], row[5], row[6]) for row in company_rows
+            ]
+
+            return companies
+    
     def get_by_lei(self, lei: str) -> Company:
+        """
+        Return the company associated with the given LEI.
+        
+        Args:
+            lei: LEI of the comapny to lookup
+        
+        Returns:
+            Company: Metadata structure of the matched company
+
+        Raises:
+            ValueError if no matching value is found.
+        """
         with self._conn() as conn:
             company_data = conn.execute(
                 "SELECT lei, registration_status, entity_status, legal_name, city, country, category FROM lei_metadata WHERE lei = ?",
                 (lei,)
-            ).fetchall()
-            company_data = company_data[0]
+            ).fetchone()
+            if company_data is None:
+                raise ValueError(f"Found no company data matching to LEI: {lei}")
             company = Company(company_data[0], company_data[1], company_data[2],
                               company_data[3], company_data[4], company_data[5], company_data[6])
         return company
     
     def list_all(self):
+        """Return all companies stored in the database."""
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT isin, name FROM companies"
@@ -53,8 +144,11 @@ class SqliteCompanyRepository(CompanyRepository):
     @classmethod
     def init_db(cls, db_path: str, *, recreate: bool = False) -> None:
         """
-        Initializes the SQLite database: create tables, indexes, etc.
-        Idempotent by default: set recreate = True to drop and recreate.
+        Initialize the SQLite schema; optionally drop and recreate tables.
+
+        Args:
+            dp_path: path where the bp should be initalized
+            recreate: Flag whether data should be dropped and tables are freshly created.
         """
         conn = sqlite3.connect(db_path)
         try:
@@ -80,20 +174,34 @@ class SqliteCompanyRepository(CompanyRepository):
     
     @staticmethod
     def _create_mapping_table(cursor: sqlite3.Cursor, table_name: str) -> None:
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table_name} (
-                    isin TEXT PRIMARY KEY,
-                    lei TEXT
-                )
-            """)
-            cursor.connection.commit()
-            column_map = {'ISIN': 'isin', 'LEI': 'lei'}
-            csv_path = os.getenv("LEI_ISIN_PATH")
-            if csv_path:            
-                import_csv_to_sqlite(csv_path, table_name, column_map, cursor.connection)
+        """
+        Create the ISIN–LEI mapping table and optionally import data from CSV.
+        
+        Args:
+            cursor: Cursor object that can execute queries.
+            table_name: Table on which to execute queries.
+        """
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                isin TEXT PRIMARY KEY,
+                lei TEXT
+            )
+        """)
+        cursor.connection.commit()
+        column_map = {'ISIN': 'isin', 'LEI': 'lei'}
+        csv_path = os.getenv("LEI_ISIN_PATH")
+        if csv_path:            
+            import_csv_to_sqlite(csv_path, table_name, column_map, cursor.connection)
     
     @staticmethod
     def _create_metadata_table(cursor: sqlite3.Cursor, table_name: str) -> None:
+        """
+        Create the LEI metadata table and populate it from the LEI CSV file.
+        
+        Args:
+            cursor: Cursor object that can execute queries.
+            table_name: Table on which to execute queries.
+        """
         cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 lei TEXT PRIMARY KEY,
@@ -136,7 +244,7 @@ class SqliteCompanyRepository(CompanyRepository):
             
         reader = pd.read_csv(csv_path, chunksize=100000, usecols=cols_to_import, dtype=dtype_settings)
 
-        for i, chunk in enumerate(reader):
+        for _, chunk in enumerate(reader):
             print(f"Header names: {chunk.columns}")
             chunk = chunk.rename(columns={
                 'LEI': 'lei',

@@ -10,14 +10,45 @@ from infrastructure.vector_repository import ChromaVectorRepository
 ISIN_REGEX = re.compile(r'^[A-Z]{2}[A-Z0-9]{9}[0-9]$')
 
 class MatchingService:
+    """Provide ISIN-based company lookup and vector-similarity matching."""
+
     def __init__(self, company_repo: CompanyRepository, vector_repo: VectorIndex):
+        """
+        Initialize the service with company and vector repositories.
+
+        Args:
+            company_repo: instance of a database to lookup company metadata.
+            vector_repo: instance of a vector db to lookup embeddings.
+
+        """
         self.company_repo = company_repo
         self.vector_repo = vector_repo
     
     def find_isin(self, isin: str) -> Company:
+        """
+        Return the company associated with the given ISIN.
+
+        Args:
+            isin: The company ISIN to lookup metadata
+
+        Returns:
+            Company: datastructure that contains the metadata.
+        """
         return self.company_repo.get_by_isin(isin)
 
     def find_matches(self, isin: str, k: int) -> Tuple[List[Company], List[float]]:
+        """
+        Return up to k companies most similar to the company with the given ISIN.
+
+        Args:
+            isin: ISIN of the company to find matches for
+            k: Number of matches to return
+        
+        Returns:
+            Tuple:
+                - List[Company]: List of company metadata corresponding to the matches.
+                - List[float]: List of weights correspoding to the mathes.
+        """
         isin = self._validate_normalize_isin(isin)
         company = self.find_isin(isin=isin)
         leis, weights = self.vector_repo.retrieve_matches(company, k)
@@ -25,12 +56,28 @@ class MatchingService:
         return companies, weights
     
     def insert_embedding(self, isin: str) -> None:
+        """
+        Insert or update the vector embedding for the company with the given ISIN.
+
+        Args:
+            isin: ISIN of the company for which to insert the embedding.
+        """
         isin = self._validate_normalize_isin(isin)
         companies = [self.find_isin(isin)]
         self.vector_repo.upsert_embedding(companies)
         print(f"Succesfully stored embedding of: {isin}")
     
     def _validate_normalize_isin(self, isin: str) -> str:
+        """
+        Validate and normalize an ISIN string.
+
+        Args:
+            isin: ISIN to validate and normalize
+
+        Raise:
+            ValueError: If the ISIN is missing, becomes empty after cleaning,
+                has an invalid length, or does not match the expected format.
+        """
         if not isin:
             raise ValueError("ISIN is None.")
         
@@ -56,8 +103,22 @@ class MatchingService:
     
     @staticmethod
     def init_sqlite(db_path: str, recreate: bool = False):
+        """
+        Initialize the SQLite-backed company repository database.
+
+        Args:
+            db_path: Path to the SQLite database file.
+            recreate: If True, drop and recreate the database schema.
+        """
         SqliteCompanyRepository.init_db(db_path, recreate=recreate)
 
     @staticmethod
     def init_vector_db(db_path: str, recreate: bool = False):
+        """
+        Initialize the vector database used for company embeddings.
+
+        Args:
+            db_path: Path to the vector database storage (e.g., directory).
+            recreate: If True, drop and recreate the vector index.
+        """
         ChromaVectorRepository.init_db(db_path, recreate=recreate)

@@ -6,6 +6,18 @@ import pandas as pd
 
 def import_csv_to_sqlite(csv_path: str, table_name: str, columns_map: Dict[str, str],
                           db: sqlite3.Connection, chunk_size: int =10000) -> None:
+    """
+    Import ISIN/LEI data from a CSV file into a SQLite table in chunks.
+    The target table is expected to have columns `isin` and `lei`.
+
+    Args:
+        csv_path: Path to the input CSV file.
+        table_name: Name of the target SQLite table.
+        columns_map: Mapping from CSV column names to target column names
+            (e.g. `{"csv_isin": "isin", "csv_lei": "lei"}`).
+        db: Open SQLite database connection.
+        chunk_size: Number of rows to process per chunk.
+    """
     if not os.path.exists(csv_path):
         print(f"Error: File {csv_path} not found.")
         return
