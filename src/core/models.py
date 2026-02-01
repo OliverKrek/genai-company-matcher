@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional, List
 
 @dataclass
 class Company():
@@ -11,6 +12,8 @@ class Company():
     city: str
     country: str
     category: str
+    sector_labels: List[str] = field(default_factory=list)
+    sector_qids: List[str] = field(default_factory=list)
 
     def embedding_text(self) -> str:
         """Returns the prompt used to embed a company in a vector DB."""

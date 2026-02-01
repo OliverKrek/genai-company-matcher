@@ -9,8 +9,8 @@ from infrastructure.vector_repository import ChromaVectorRepository
 load_dotenv()
 
 def create_service() -> MatchingService:
-    company_repo = SqliteCompanyRepository(db_path=os.getenv("SQL_DB"))
-    vector_repo = ChromaVectorRepository(db_path=os.getenv("VECTOR_DB"))
+    company_repo = SqliteCompanyRepository(db_path=os.getenv("DB_PATH"))
+    vector_repo = ChromaVectorRepository(db_path=os.getenv("VECTOR_DB_PATH"))
     return MatchingService(company_repo, vector_repo)
 
 
@@ -32,8 +32,8 @@ def main():
     vectordb_cmd.add_argument("--isin", required=True)
 
     args = parser.parse_args()
-    sql_db_path = os.getenv("SQL_DB")
-    vector_db_path = os.getenv("VECTOR_DB")
+    sql_db_path = os.getenv("DB_PATH")
+    vector_db_path = os.getenv("VECTOR_DB_PATH")
 
     if args.command == "init":
         if args.target in ("sqlite", "all"):

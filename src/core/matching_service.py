@@ -64,6 +64,17 @@ class MatchingService:
         """
         isin = self._validate_normalize_isin(isin)
         companies = [self.find_isin(isin)]
+        # get the company corresponding to the isin. If there is 
+        if not companies[0].sector_labels:
+            print(f"Fetching metadata from wikidata for: {isin}")
+            # Call function dict
+            wikidata_response = {}
+            self.company_repo.save_wikidata_information(companies[0].lei, wikidata_response['wikidata_id'],
+                                                        wikidata_response['description'],
+                                                        wikidata_response['sectors'])
+            companies[0].sector_labels = wikidata_response['sectors']['label']
+            companies[0].sector_qids = wikidata_response['sectors']['qid']
+
         self.vector_repo.upsert_embedding(companies)
         print(f"Succesfully stored embedding of: {isin}")
     

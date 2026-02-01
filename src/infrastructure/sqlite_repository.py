@@ -2,7 +2,8 @@
 import sqlite3
 import os
 import pandas as pd
-from typing import List
+from typing import List, Optional, Any, Dict
+from datetime import datetime
 from core.models import Company
 from core.interfaces import CompanyRepository
 from infrastructure.utils import import_csv_to_sqlite
@@ -139,7 +140,46 @@ class SqliteCompanyRepository(CompanyRepository):
                 "SELECT isin, name FROM companies"
             ).fetchall()
         return NotImplementedError
+    
+    def get_cached_wikidata(self, lei: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            cache_row = conn.execute(
+                "SELECT wikidata_id, description FROM wikidata_cache WHERE lei = ?",
+                (lei,)
+            ).fetchone()
 
+            if not cache_row:
+                return None
+            
+            sector_rows = conn.execute(
+                "SELECT sector_label, sector_qid FROM company_sectors WHERE lei = ?",
+                (lei,)
+            ).fetchall()
+
+            return {
+                "wikidata_id": cache_row[0],
+                "description": cache_row[1],
+                "sectors": [{"label": row[0], "qid": row[1]} for row in sector_rows]
+            }
+
+    def save_wikidata_information(self, lei: str, wikidata_id:str, description: str, sectors: List[Dict[str, str]]):
+        with self._conn() as conn:
+            conn.execute(
+                f"""
+                INSERT OR REPLACE INTO wikidata_cache (lei, wikidata_id, description, last_updated)
+                VALUES (?, ?, ?, ?)
+                """,
+                (lei, wikidata_id, description, datetime.now().isoformat())
+            )
+
+            conn.execute("DELETE FROM company_sectors WHERE lei = ?", (lei,))
+
+            if sectors:
+                conn.execute(
+                    "INSERT INTO company_sectors (lei, sector_label, sector_qid) VALUES (?, ?, ?)",
+                    [(lei, s['label'], s['qid']) for s in sectors]
+                )
+            conn.commit()
     # ---------------- DB initalization ----------------
     @classmethod
     def init_db(cls, db_path: str, *, recreate: bool = False) -> None:
@@ -159,18 +199,50 @@ class SqliteCompanyRepository(CompanyRepository):
             cursor = conn.cursor()
             map_table = 'isin_lei_map'
             metadata_table = 'lei_metadata'
+            wikidata_cache = 'wikidata_cache'
+            company_sectors = 'company_sectors'
 
             if recreate:
                 cursor.execute(f"DROP TABLE IF EXISTS {map_table}")
                 cursor.execute(f"DROP TABLE IF EXISTS {metadata_table}")
+                cursor.execute(f"DROP TABLE IF EXISTS {wikidata_cache}")
+                cursor.execute(f"DROP TABLE IF EXISTS {company_sectors}")
 
             # Create the two tables using static methods for clean separation
             cls._create_mapping_table(cursor, map_table)
             print(f"Created mapping table.")
             cls._create_metadata_table(cursor, metadata_table)
             print(f"Created metadata table.")
+            cls._create_wikidata_cache(cursor, wikidata_cache)
+            print(f"Create wikidata cache table.")
+            cls._create_company_sector(cursor, company_sectors)
+            print(f"Created company sectors mapping table.")
         finally:
             conn.close()
+        
+    @staticmethod
+    def _create_wikidata_cache(cursor: sqlite3.Cursor, table_name: str) -> None:
+        """Create the empty tables for the wikidata that stores metadata on companies"""
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                lei TEXT PRIMARY KEY,
+                wikidata_id TEXT, --
+                description TEXT,
+                last_updated DATETIME
+            )
+        """)
+        cursor.connection.commit()
+
+    def _create_company_sector(cursor: sqlite3.Cursor, table_name: str) -> None:
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                lei TEXT,
+                sector_label TEXT,
+                sector_qid TEXT,
+                FOREIGN KEY(lei) REFERENCES wikidata_cache(lei)
+            )
+        """)
+        cursor.connection.commit()
     
     @staticmethod
     def _create_mapping_table(cursor: sqlite3.Cursor, table_name: str) -> None:
