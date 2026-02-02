@@ -1,5 +1,5 @@
 # src/core/matching_service.py
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import re
 import unicodedata
 from core.models import Company
@@ -25,7 +25,7 @@ class MatchingService:
         self.company_repo = company_repo
         self.vector_repo = vector_repo
     
-    def find_isin(self, isin: str) -> Company:
+    def find_by_isin(self, isin: str) -> Company:
         """
         Return the company associated with the given ISIN.
 
@@ -36,6 +36,18 @@ class MatchingService:
             Company: datastructure that contains the metadata.
         """
         return self.company_repo.get_by_isin(isin)
+    
+    def find_by_lei(self, lei: str) -> Company:
+        """
+        Return the company associated with the given ISIN.
+
+        Args:
+            lei: The company lei to lookup metadata.
+
+        Return:
+            Company: data structure that contains the metadata
+        """
+        return self.company_repo.get_by_lei(lei)
 
     def find_matches(self, isin: str, k: int) -> Tuple[List[Company], List[float]]:
         """
@@ -56,15 +68,29 @@ class MatchingService:
         companies = [self.company_repo.get_by_lei(lei) for lei in leis]
         return companies, weights
     
-    def insert_embedding(self, isin: str) -> None:
+    def insert_embedding(self, isins: Union[List[str], str] ) -> None:
         """
         Insert or update the vector embedding for the company with the given ISIN.
 
         Args:
-            isin: ISIN of the company for which to insert the embedding.
+            isins: list or single isin to embed in the vector DB
         """
+        # Calls are delegated to internal functions
+        if isinstance(isins, list):
+            self._insert_embeddings(isins)
+        else:
+            self._insert_embedding(isins)
+    
+
+    def _insert_embedding(self, isin: str) -> None:
         isin = self._validate_normalize_isin(isin)
-        companies = [self.find_isin(isin)]
+        company= self.find_isin(isin)
+
+        if not company.validate():
+            raise NotImplementedError
+        
+        self.vector_repo.upsert_embedding(company)
+        '''
         # get the company corresponding to the isin. If there is 
         if not companies[0].sector_labels:
             print(f"Fetching metadata from wikidata for: {isin}")
@@ -78,7 +104,11 @@ class MatchingService:
             companies[0].sector_qids = wikidata_response['sectors'][0]['qid']
 
         self.vector_repo.upsert_embedding(companies)
+        '''
         print(f"Succesfully stored embedding of: {isin}")
+
+    def _insert_embeddings(self, isins: List[str]) -> None:
+        raise NotImplementedError
     
     def _validate_normalize_isin(self, isin: str) -> str:
         """

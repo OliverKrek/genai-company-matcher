@@ -6,6 +6,10 @@ class CompanyRepository(Protocol):
     def get_by_isin(self, isin: str) -> Company | None:
         """Return the company with the given ISIN, or None if not found."""
         ...
+
+    def get_by_lei(self, lei: str) -> Company | None:
+        """Return the company with the given Lei, or None if not found"""
+        ...
     
     def list_all(self) -> List[Company]:
         """Return a list of all companies in the repository."""

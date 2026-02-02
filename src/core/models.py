@@ -15,13 +15,19 @@ class Company():
     sector_labels: List[str] = field(default_factory=list)
     sector_qids: List[str] = field(default_factory=list)
 
+    def validate(self) -> bool:
+        return True if (self.sector_labels or self.sector_qids) else False
+
     def embedding_text(self) -> str:
         """Returns the prompt used to embed a company in a vector DB."""
+        location = f"located in {self.city}, {self.country}"
+
+        if self.sector_labels and self.sector_qids:
+            return f"{self.legal_name} is a {self.sector_labels[0]}, {location}. It belongs in {self.sector_qids[0]}."
         if self.sector_labels:
-            return f"""
-                {self.legal_name} is a {self.sector_labels[0]}, located in {self.city}, {self.country}.
-                It belongs in {self.sector_qids[0]}.
-            """
+            return f"{self.legal_name} is a {self.sector_labels[0]}, {location}. It belongs in {self.sector_qids[0]}." 
+        if self.sector_qids:
+            return f"Company {self.legal_name}, {location}. It belongs in {self.sector_qids[0]}."
         
         return f"""
             Risk characteristics for company {self.legal_name}. Located in {self.city}, {self.country}. Category: {self.category}.

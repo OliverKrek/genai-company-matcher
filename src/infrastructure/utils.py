@@ -40,6 +40,16 @@ def import_csv_to_sqlite(csv_path: str, table_name: str, columns_map: Dict[str, 
     db.execute("DROP TABLE IF EXISTS temp_staging")
 
 def _get_wikidata_session(retries: int = 3, backoff_factor: float = 1.0) -> requests.Session:
+    """
+    Returns the session object to handle http connection to wikidata.
+
+    Args:
+        retries: the number of retries for the connection policy
+        backoff_factor: The scaling factor for the wait times
+
+    Returns:
+        requests.Session: Session object to handle requests
+    """
     session = requests.Session()
 
     retry_strategy = Retry(
@@ -109,7 +119,7 @@ def query_wikidata(lei: str, max_retries: int = 3) -> Dict[str, Any]:
             if "itemDescription" in first:
                 result_dict["description"] = first["itemDescription"]["value"]
 
-            # Aggregate sectors (handle duplicates caused by multiple industries)
+            # Aggregate sectors: companies can be associated with multiple sectors 
             unique_sector_qids = set()
             sectors = []
             
