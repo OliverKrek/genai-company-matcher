@@ -173,9 +173,8 @@ class SqliteCompanyRepository(CompanyRepository):
             )
 
             conn.execute("DELETE FROM company_sectors WHERE lei = ?", (lei,))
-
             if sectors:
-                conn.execute(
+                conn.executemany(
                     "INSERT INTO company_sectors (lei, sector_label, sector_qid) VALUES (?, ?, ?)",
                     [(lei, s['label'], s['qid']) for s in sectors]
                 )

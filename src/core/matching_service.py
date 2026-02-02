@@ -6,6 +6,7 @@ from core.models import Company
 from core.interfaces import CompanyRepository, VectorIndex
 from infrastructure.sqlite_repository import SqliteCompanyRepository
 from infrastructure.vector_repository import ChromaVectorRepository
+from infrastructure.utils import query_wikidata
 
 ISIN_REGEX = re.compile(r'^[A-Z]{2}[A-Z0-9]{9}[0-9]$')
 
@@ -68,12 +69,13 @@ class MatchingService:
         if not companies[0].sector_labels:
             print(f"Fetching metadata from wikidata for: {isin}")
             # Call function dict
-            wikidata_response = {}
+            wikidata_response = query_wikidata(companies[0].lei)
+            print(wikidata_response)
             self.company_repo.save_wikidata_information(companies[0].lei, wikidata_response['wikidata_id'],
                                                         wikidata_response['description'],
                                                         wikidata_response['sectors'])
-            companies[0].sector_labels = wikidata_response['sectors']['label']
-            companies[0].sector_qids = wikidata_response['sectors']['qid']
+            companies[0].sector_labels = wikidata_response['sectors'][0]['label']
+            companies[0].sector_qids = wikidata_response['sectors'][0]['qid']
 
         self.vector_repo.upsert_embedding(companies)
         print(f"Succesfully stored embedding of: {isin}")

@@ -17,7 +17,15 @@ class Company():
 
     def embedding_text(self) -> str:
         """Returns the prompt used to embed a company in a vector DB."""
-        return f"""Risk characteristics for company {self.legal_name}. Located in {self.city}, {self.country}. Category: {self.category}."""
+        if self.sector_labels:
+            return f"""
+                {self.legal_name} is a {self.sector_labels[0]}, located in {self.city}, {self.country}.
+                It belongs in {self.sector_qids[0]}.
+            """
+        
+        return f"""
+            Risk characteristics for company {self.legal_name}. Located in {self.city}, {self.country}. Category: {self.category}.
+        """
 
     def __str__(self):
         """Returns the string Representation of a company"""

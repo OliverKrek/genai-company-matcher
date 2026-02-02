@@ -77,7 +77,7 @@ class ChromaVectorRepository(VectorIndex):
         return results["ids"][0], results["distances"][0]
     
     @classmethod
-    def init_db(cls, db_path: str, *, recreate: bool = False) -> None:
+    def init_db(cls, db_path: str, *, recreate: bool = False, model: str = "all-MiniLM-L6-v2", distance: str = "cosine") -> None:
         """
         Initialize the vector database at the given path.
 
@@ -98,5 +98,11 @@ class ChromaVectorRepository(VectorIndex):
             except Exception:
                 print("No exisiting collection to delete. Moving on...")
         
-        client.get_or_create_collection(name="companies")
+        embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=model)
+        client.get_or_create_collection(
+            name="companies",
+            embedding_function=embedding_function,
+            metadata={"embedding_model": model,
+                      "hnsw:space": distance},
+        )   
         print(f"Finished initializing vector databse at {db_path}")
