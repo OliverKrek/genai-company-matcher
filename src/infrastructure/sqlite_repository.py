@@ -7,6 +7,7 @@ from datetime import datetime
 from core.models import Company
 from core.interfaces import CompanyRepository
 from infrastructure.utils import import_csv_to_sqlite
+from infrastructure.utils import query_wikidata
 
 class SqliteCompanyRepository(CompanyRepository):
     """SQLite-backed implementation of the CompanyRepository interface."""
@@ -141,6 +142,17 @@ class SqliteCompanyRepository(CompanyRepository):
             ).fetchall()
         return NotImplementedError
     
+    def set_wikidata_info(self, company: Company) -> None:
+        wikidata_dict = self.get_cached_wikidata(company.lei)
+        if not wikidata_dict:
+            wikidata_dict = query_wikidata(company.lei)
+            self.save_wikidata_information(company.lei,
+                                           wikidata_dict['wikidata_id'],
+                                           wikidata_dict['description'],
+                                           wikidata_dict['sectors'])
+            company.sector_labels = [sector['label'] for sector in (wikidata_dict['sectors'] or [])]
+            company.sector_qids = [sector['qid'] for sector in (wikidata_dict['sectors'] or [])]
+    
     def get_cached_wikidata(self, lei: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             cache_row = conn.execute(
@@ -179,6 +191,7 @@ class SqliteCompanyRepository(CompanyRepository):
                     [(lei, s['label'], s['qid']) for s in sectors]
                 )
             conn.commit()
+
     # ---------------- DB initalization ----------------
     @classmethod
     def init_db(cls, db_path: str, *, recreate: bool = False) -> None:

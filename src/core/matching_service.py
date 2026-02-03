@@ -25,7 +25,7 @@ class MatchingService:
         self.company_repo = company_repo
         self.vector_repo = vector_repo
     
-    def find_by_isin(self, isin: str) -> Company:
+    def find_by_isin(self, isin: Union[List[str] | str]) -> Company | List[Company]:
         """
         Return the company associated with the given ISIN.
 
@@ -35,7 +35,10 @@ class MatchingService:
         Returns:
             Company: datastructure that contains the metadata.
         """
-        return self.company_repo.get_by_isin(isin)
+        if isinstance(isin, list):
+            return self.company_repo.get_by_isin(isin)
+        else:
+            return self.company_repo.get_by_isins(isin)
     
     def find_by_lei(self, lei: str) -> Company:
         """
@@ -68,7 +71,7 @@ class MatchingService:
         companies = [self.company_repo.get_by_lei(lei) for lei in leis]
         return companies, weights
     
-    def insert_embedding(self, isins: Union[List[str], str] ) -> None:
+    def insert_embedding(self, isins: List[str] | str ) -> None:
         """
         Insert or update the vector embedding for the company with the given ISIN.
 
@@ -87,28 +90,21 @@ class MatchingService:
         company= self.find_isin(isin)
 
         if not company.validate():
-            raise NotImplementedError
+            self.company_repo.set_wikidata_info(company)
+            
         
         self.vector_repo.upsert_embedding(company)
-        '''
-        # get the company corresponding to the isin. If there is 
-        if not companies[0].sector_labels:
-            print(f"Fetching metadata from wikidata for: {isin}")
-            # Call function dict
-            wikidata_response = query_wikidata(companies[0].lei)
-            print(wikidata_response)
-            self.company_repo.save_wikidata_information(companies[0].lei, wikidata_response['wikidata_id'],
-                                                        wikidata_response['description'],
-                                                        wikidata_response['sectors'])
-            companies[0].sector_labels = wikidata_response['sectors'][0]['label']
-            companies[0].sector_qids = wikidata_response['sectors'][0]['qid']
-
-        self.vector_repo.upsert_embedding(companies)
-        '''
         print(f"Succesfully stored embedding of: {isin}")
 
     def _insert_embeddings(self, isins: List[str]) -> None:
-        raise NotImplementedError
+        isins = [self._validate_normalize_isin(isin) for isin in isins]
+        companies = self.find_by_isin(isins)
+
+        for company in companies:
+            if not company.validate():
+                self.company_repo.set_wikidata_info(company)
+            self.vector_repo.upsert_embedding(company)
+            print(f"Successfully stored embedding of : {company}")
     
     def _validate_normalize_isin(self, isin: str) -> str:
         """
