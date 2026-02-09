@@ -9,6 +9,19 @@ from infrastructure.vector_repository import ChromaVectorRepository
 from infrastructure.utils import query_wikidata
 
 ISIN_REGEX = re.compile(r'^[A-Z]{2}[A-Z0-9]{9}[0-9]$')
+"""
+The matching service provides ISIN/LEI based lookup of company data using a vector-embedding approach.
+
+The class contains a company repository (company_repo) and a vector repository (vector_repo).
+
+There is a minimal public interface that exposes the core functionality:
+    - find_by_isin()
+    - find_by_lei()
+    - insert_embedding()
+    - find_matches()
+
+TODO: move the embedding insertion to the vector repo class. This is a core vectorDB functionality.
+"""
 
 class MatchingService:
     """Provide ISIN-based company lookup and vector-similarity matching."""
@@ -24,7 +37,8 @@ class MatchingService:
         """
         self.company_repo = company_repo
         self.vector_repo = vector_repo
-    
+
+    # -------------------- Public Interface -------------------- 
     def find_by_isin(self, isin: Union[List[str] | str]) -> Company | List[Company]:
         """
         Return the company associated with the given ISIN.
@@ -84,14 +98,13 @@ class MatchingService:
         else:
             self._insert_embedding(isins)
     
-
+    # -------------------- Internal Functions -------------------- 
     def _insert_embedding(self, isin: str) -> None:
         isin = self._validate_normalize_isin(isin)
         company= self.find_isin(isin)
 
         if not company.validate():
             self.company_repo.set_wikidata_info(company)
-            
         
         self.vector_repo.upsert_embedding(company)
         print(f"Succesfully stored embedding of: {isin}")

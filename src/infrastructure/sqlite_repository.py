@@ -9,6 +9,26 @@ from core.interfaces import CompanyRepository
 from infrastructure.utils import import_csv_to_sqlite
 from infrastructure.utils import query_wikidata
 
+# TODO: do proper aliasing for the table in the queries
+# TODO: Split the repo into proper tasks. Base sqlite repo and one class for company repo and one for wikidata.
+
+# SQL query constants
+COMPANY_COLUMNS = """
+    lei,
+    registration_status,
+    entity_status,
+    legal_name,
+    city,
+    country,
+    category
+"""
+
+SELECT_COMPANY_BY_LEI = f"""
+    SELECT {COMPANY_COLUMNS}
+    FROM lei_metadata
+    WHERE lei = ?
+"""
+
 class SqliteCompanyRepository(CompanyRepository):
     """SQLite-backed implementation of the CompanyRepository interface."""
 
@@ -17,14 +37,16 @@ class SqliteCompanyRepository(CompanyRepository):
         Initialize the repository with a path to the SQLite database file.
         
         Args:
-            dp_path: Path of the repository
+            db_path: Path of the repository
         """
         super().__init__()
         self.db_path = db_path
 
     def _conn(self) -> sqlite3.Connection:
         """Return a new SQLite connection to the configured database."""
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
     
     def get_by_isin(self, isin: str) -> Company:
         """
@@ -41,25 +63,19 @@ class SqliteCompanyRepository(CompanyRepository):
         """
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT lei FROM isin_lei_map WHERE isin = ?",
+                f"""
+                SELECT {COMPANY_COLUMNS}
+                FROM isin_lei_map im
+                JOIN lei_metadata m ON im.lei = m.lei
+                WHERE im.isin = ?
+                """,
                 (isin,)
             ).fetchone()
 
             if row is None:
-                raise ValueError(f"No LEI found for ISIN {isin}")
+                raise ValueError(f"No company metadata found for ISIN {isin}")
             
-            lei = row[0]
-            company_row = conn.execute(
-                "SELECT lei, registration_status, entity_status, legal_name, city, country, category FROM lei_metadata WHERE lei = ?",
-                (lei,)
-            ).fetchone()
-
-            if company_row is None:
-                raise ValueError(f"No company metadata found for LEI {lei}")
-
-            company = Company(company_row[0], company_row[1], company_row[2],
-                              company_row[3], company_row[4], company_row[5], company_row[6])
-        return company
+            return Company.from_row(row)
     
     def get_by_isins(self, isins: List[str]) -> List[Company | None]:
         """
@@ -71,43 +87,21 @@ class SqliteCompanyRepository(CompanyRepository):
         Returns:
             List[Company]: returns a list of mateches otherwise none
         """
+        if not isins:
+            return []
+
         with self._conn() as conn:
             isin_placeholders = ", ".join(["?"] * len(isins))
-            lei_rows = conn.execute(
-                f"""
-                SELECT lei
-                FROM isin_lei_map
+            company_rows = conn.execute(f"""
+                SELECT {COMPANY_COLUMNS}
+                FROM lei_metadata m
+                JOIN isin_lei_map im ON m.lei = im.lei
                 WHERE isin IN ({isin_placeholders})
                 """,
                 isins,
             ).fetchall()
 
-            leis = [row[0] for row in lei_rows]
-
-            if not leis:
-                return []
-
-            lei_placeholders = ", ".join(["?"] * len(leis))
-            company_rows = conn.execute(
-                f"""
-                SELECT
-                    lei,
-                    registration_status,
-                    entity_status,
-                    legal_name,
-                    city,
-                    country,
-                    category
-                FROM lei_metadata
-                WHERE lei IN ({lei_placeholders})
-                """,
-                leis,
-            ).fetchall()
-
-            companies = [
-                Company(row[0], row[1], row[2], row[3], row[4], row[5], row[6]) for row in company_rows
-            ]
-
+            companies = [Company.from_row(row) for row in company_rows]
             return companies
     
     def get_by_lei(self, lei: str) -> Company:
@@ -125,22 +119,18 @@ class SqliteCompanyRepository(CompanyRepository):
         """
         with self._conn() as conn:
             company_data = conn.execute(
-                "SELECT lei, registration_status, entity_status, legal_name, city, country, category FROM lei_metadata WHERE lei = ?",
+                f"SELECT {COMPANY_COLUMNS} FROM lei_metadata WHERE lei = ?",
                 (lei,)
             ).fetchone()
+
             if company_data is None:
                 raise ValueError(f"Found no company data matching to LEI: {lei}")
-            company = Company(company_data[0], company_data[1], company_data[2],
-                              company_data[3], company_data[4], company_data[5], company_data[6])
-        return company
+           
+        return Company.from_row(company_data)
     
     def list_all(self):
         """Return all companies stored in the database."""
-        with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT isin, name FROM companies"
-            ).fetchall()
-        return NotImplementedError
+        raise NotImplementedError
     
     def set_wikidata_info(self, company: Company) -> None:
         wikidata_dict = self.get_cached_wikidata(company.lei)

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional, List
+import sqlite3
 
 @dataclass
 class Company():
@@ -16,6 +17,7 @@ class Company():
     sector_qids: List[str] = field(default_factory=list)
 
     def validate(self) -> bool:
+        """Validates whether the class contains sector level information."""
         return True if (self.sector_labels or self.sector_qids) else False
 
     def embedding_text(self) -> str:
@@ -33,6 +35,18 @@ class Company():
             Risk characteristics for company {self.legal_name}. Located in {self.city}, {self.country}. Category: {self.category}.
         """
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Returns the string Representation of a company"""
         return f"Name: {self.legal_name}, LEI: {self.lei}, Country: {self.country}, Category: {self.category}"
+    
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> "Company":
+        return cls(
+            lei=row["lei"],
+            registration_status=row["registration_status"],
+            entity_status=row["entity_status"],
+            legal_name=row["legal_name"],
+            city=row["city"],
+            country=row["country"],
+            category=row["category"],
+        )
