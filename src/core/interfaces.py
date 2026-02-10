@@ -11,11 +11,15 @@ class CompanyRepository(Protocol):
         """Return a list of companies with the given ISINs"""
         ...
 
-    def get_by_lei(self, lei: str) -> Company | None:
+    def get_by_lei(self, lei: str) -> Company:
         """Return the company with the given Lei, or None if not found"""
         ...
+
+    def enrich_company(self, lei: str, description: str, labels: List[str]) -> None:
+        """Stores data on sector and industry in the repository."""
+        ...
     
-    def list_all(self) -> List[Company]:
+    def list_all(self, limit: int = 100) -> List[Company]:
         """Return a list of all companies in the repository."""
         ...
 
