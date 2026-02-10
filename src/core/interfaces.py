@@ -3,8 +3,12 @@ from core.models import Company
 
 class CompanyRepository(Protocol):
     """Protocol for repositories of company metadata."""
-    def get_by_isin(self, isin: str) -> Company | None:
+    def get_by_isin(self, isin: str) -> Company:
         """Return the company with the given ISIN, or None if not found."""
+        ...
+
+    def get_by_isins(self, isins: List[str]) -> List[Company]:
+        """Return a list of companies with the given ISINs"""
         ...
 
     def get_by_lei(self, lei: str) -> Company | None:
