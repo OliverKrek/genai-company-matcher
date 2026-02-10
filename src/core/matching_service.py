@@ -39,9 +39,9 @@ class MatchingService:
         self.vector_repo = vector_repo
 
     # -------------------- Public Interface -------------------- 
-    def find_by_isin(self, isin: Union[List[str] | str]) -> Company | List[Company]:
+    def find_by_isin(self, isin: List[str] | str) -> Company | List[Company]:
         """
-        Return the company associated with the given ISIN.
+        Return the company (or companies) associated with the given ISINS(s).
 
         Args:
             isin: The company ISIN to lookup metadata
@@ -50,13 +50,13 @@ class MatchingService:
             Company: datastructure that contains the metadata.
         """
         if isinstance(isin, list):
-            return self.company_repo.get_by_isin(isin)
-        else:
             return self.company_repo.get_by_isins(isin)
+        else:
+            return self.company_repo.get_by_isin(isin)
     
     def find_by_lei(self, lei: str) -> Company:
         """
-        Return the company associated with the given ISIN.
+        Return the company associated with the given the LEI.
 
         Args:
             lei: The company lei to lookup metadata.
@@ -80,7 +80,7 @@ class MatchingService:
                 - List[float]: List of weights correspoding to the mathes.
         """
         isin = self._validate_normalize_isin(isin)
-        company = self.find_isin(isin=isin)
+        company = self.find_by_isin(isin=isin)
         leis, weights = self.vector_repo.retrieve_matches(company, k)
         companies = [self.company_repo.get_by_lei(lei) for lei in leis]
         return companies, weights
@@ -101,9 +101,10 @@ class MatchingService:
     # -------------------- Internal Functions -------------------- 
     def _insert_embedding(self, isin: str) -> None:
         isin = self._validate_normalize_isin(isin)
-        company= self.find_isin(isin)
+        company= self.find_by_isin(isin)
 
         if not company.validate():
+            # If the validation returns False we have to query the wikidata from the API
             self.company_repo.set_wikidata_info(company)
         
         self.vector_repo.upsert_embedding(company)
