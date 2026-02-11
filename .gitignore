@@ -20,3 +20,7 @@ databases/
 # OS stuff
 .DS_Store
 Thumbs.db
+*.egg-info/
+
+# Extra files
+src/test_components.py
