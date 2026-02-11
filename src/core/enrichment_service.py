@@ -1,5 +1,5 @@
 # core/enrichment_service.py
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -27,9 +27,15 @@ class EnrichmentService:
         })
         return session
 
-
+    # ---------------- Implementation/Interface to sql repo -----------------
     def get_enriched_company_by_isin(self, isin: str) -> Optional[Company]:
         return self._ensure_enriched_company_by_isin(isin)
+    
+    def get_enriched_companies_by_isin(self, isins: List[str]) -> List[Company | None]:
+        return self._ensure_enriched_company_by_isins(isins)
+    
+    def get_enriched_company_by_lei(self, lei: str) -> Optional[Company]:
+        return self._ensure_enriched_company_by_lei(lei)
 
     def _ensure_enriched_company_by_isin(self, isin: str) -> Optional[Company]:
         company = self.company_repo.get_by_isin(isin)
@@ -50,7 +56,51 @@ class EnrichmentService:
             self.company_repo.enrich_company(company.lei, description, labels)
 
         return company
-        
+    
+    def _ensure_enriched_company_by_isins(self, isins: List[str]) -> List[Company | None]:
+        companies = self.company_repo.get_by_isins(isins)
+
+        enriched_companies = []
+
+        for company in companies:
+            if not company:
+                enriched_companies.append(None)
+                continue
+
+            if company.has_sector_data:
+                enriched_companies.append(company)
+            
+            wikidata_data = self._query_wikidata(company.lei)
+
+            if wikidata_data.get("wikidata_id"):
+                description = wikidata_data["description"] or ""
+                labels = [s["label"] for s in wikidata_data["sectors"]]
+
+                company.enrich(labels, description)
+                self.company_repo.enrich_company(company.lei, description, labels)
+            enriched_companies.append(company)
+        return enriched_companies
+    
+    def _ensure_enriched_company_by_lei(self, lei: str) -> Optional[Company]:
+        company = self.company_repo.get_by_lei(lei)
+
+        if not company:
+            return None
+
+        if company.has_sector_data:
+            return company
+
+        wikidata_data = self._query_wikidata(company.lei)
+
+        if wikidata_data.get("wikidata_id"):
+            description = wikidata_data["description"] or ""
+            labels = [s["label"] for s in wikidata_data["sectors"]]
+
+            company.enrich(labels, description)
+            self.company_repo.enrich_company(company.lei, description, labels)
+
+        return company
+
     def _query_wikidata(self, lei: str, max_retries: int = 3) -> Dict[str, Any]:
         """
         Queries wikidata for industry and description using LEI.

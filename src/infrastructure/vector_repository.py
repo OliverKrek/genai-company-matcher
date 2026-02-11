@@ -75,34 +75,4 @@ class ChromaVectorRepository(VectorIndex):
             include=["distances"]
         )
         return results["ids"][0], results["distances"][0]
-    
-    @classmethod
-    def init_db(cls, db_path: str, *, recreate: bool = False, model: str = "all-MiniLM-L6-v2", distance: str = "cosine") -> None:
-        """
-        Initialize the vector database at the given path.
-
-        Create the `companies` collection if it does not exist. Optionally
-        delete and recreate the collection when `recreate` is True.
-
-        Args:
-            db_path: Path to the ChromaDB storage.
-            recreate: If True, delete any existing `companies` collection
-                and create a new one.
-        """
-        client = chromadb.PersistentClient(path=db_path)
-
-        if recreate:
-            try:
-                client.delete_collection(name="companies")
-                print(f"Deleting existing companies database.")
-            except Exception:
-                print("No exisiting collection to delete. Moving on...")
-        
-        embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=model)
-        client.get_or_create_collection(
-            name="companies",
-            embedding_function=embedding_function,
-            metadata={"embedding_model": model,
-                      "hnsw:space": distance},
-        )   
-        print(f"Finished initializing vector databse at {db_path}")
+   

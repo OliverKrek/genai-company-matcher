@@ -4,6 +4,7 @@ import re
 import unicodedata
 from core.models import Company
 from core.interfaces import CompanyRepository, VectorIndex
+from core.enrichment_service import EnrichmentService
 from infrastructure.sqlite_repository import SqliteCompanyRepository
 from infrastructure.vector_repository import ChromaVectorRepository
 from infrastructure.utils import query_wikidata
@@ -20,13 +21,13 @@ There is a minimal public interface that exposes the core functionality:
     - insert_embedding()
     - find_matches()
 
-TODO: move the embedding insertion to the vector repo class. This is a core vectorDB functionality.
+TODO: Fix the issue with list vs no list in insert embeddings. Probably necessary to change the interface of the vector repo
 """
 
 class MatchingService:
     """Provide ISIN-based company lookup and vector-similarity matching."""
 
-    def __init__(self, company_repo: CompanyRepository, vector_repo: VectorIndex):
+    def __init__(self, enrichment_service: EnrichmentService, vector_repo: VectorIndex):
         """
         Initialize the service with company and vector repositories.
 
@@ -35,7 +36,7 @@ class MatchingService:
             vector_repo: instance of a vector db to lookup embeddings.
 
         """
-        self.company_repo = company_repo
+        self.enrichment_service = enrichment_service
         self.vector_repo = vector_repo
 
     # -------------------- Public Interface -------------------- 
@@ -50,9 +51,9 @@ class MatchingService:
             Company: datastructure that contains the metadata.
         """
         if isinstance(isin, list):
-            return self.company_repo.get_by_isins(isin)
+            return self.enrichment_service.get_enriched_companies_by_isin(isin)
         else:
-            return self.company_repo.get_by_isin(isin)
+            return self.enrichment_service.get_enriched_company_by_isin(isin)
     
     def find_by_lei(self, lei: str) -> Company:
         """
@@ -64,7 +65,7 @@ class MatchingService:
         Return:
             Company: data structure that contains the metadata
         """
-        return self.company_repo.get_by_lei(lei)
+        return self.enrichment_service.get_enriched_company_by_lei(lei)
 
     def find_matches(self, isin: str, k: int) -> Tuple[List[Company], List[float]]:
         """
@@ -80,9 +81,9 @@ class MatchingService:
                 - List[float]: List of weights correspoding to the mathes.
         """
         isin = self._validate_normalize_isin(isin)
-        company = self.find_by_isin(isin=isin)
+        company = self.enrichment_service.get_enriched_company_by_isin(isin)
         leis, weights = self.vector_repo.retrieve_matches(company, k)
-        companies = [self.company_repo.get_by_lei(lei) for lei in leis]
+        companies = [self.enrichment_service.get_enriched_company_by_lei(lei) for lei in leis]
         return companies, weights
     
     def insert_embedding(self, isins: List[str] | str ) -> None:
@@ -101,23 +102,16 @@ class MatchingService:
     # -------------------- Internal Functions -------------------- 
     def _insert_embedding(self, isin: str) -> None:
         isin = self._validate_normalize_isin(isin)
-        company= self.find_by_isin(isin)
-
-        if not company.validate():
-            # If the validation returns False we have to query the wikidata from the API
-            self.company_repo.set_wikidata_info(company)
-        
-        self.vector_repo.upsert_embedding(company)
+        company = self.enrichment_service.get_enriched_company_by_isin(isin)
+        self.vector_repo.upsert_embedding([company])
         print(f"Succesfully stored embedding of: {isin}")
 
     def _insert_embeddings(self, isins: List[str]) -> None:
         isins = [self._validate_normalize_isin(isin) for isin in isins]
-        companies = self.find_by_isin(isins)
-
+        companies = self.enrichment_service.get_enriched_companies_by_isin(isins)
+        print(companies)
         for company in companies:
-            if not company.validate():
-                self.company_repo.set_wikidata_info(company)
-            self.vector_repo.upsert_embedding(company)
+            self.vector_repo.upsert_embedding([company])
             print(f"Successfully stored embedding of : {company}")
     
     def _validate_normalize_isin(self, isin: str) -> str:
@@ -153,25 +147,3 @@ class MatchingService:
             )
         
         return isin
-    
-    @staticmethod
-    def init_sqlite(db_path: str, recreate: bool = False):
-        """
-        Initialize the SQLite-backed company repository database.
-
-        Args:
-            db_path: Path to the SQLite database file.
-            recreate: If True, drop and recreate the database schema.
-        """
-        SqliteCompanyRepository.init_db(db_path, recreate=recreate)
-
-    @staticmethod
-    def init_vector_db(db_path: str, recreate: bool = False):
-        """
-        Initialize the vector database used for company embeddings.
-
-        Args:
-            db_path: Path to the vector database storage (e.g., directory).
-            recreate: If True, drop and recreate the vector index.
-        """
-        ChromaVectorRepository.init_db(db_path, recreate=recreate)

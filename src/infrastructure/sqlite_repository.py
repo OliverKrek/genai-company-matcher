@@ -90,7 +90,7 @@ class SqliteCompanyRepository(BaseSqliteRepository, CompanyRepository):
         """
         with self._conn() as conn:
             row = conn.execute(
-                f"SELECT {COMPANY_COLUMNS} FROM lei_metadata WHERE lei = ?",
+                f"SELECT {COMPANY_COLUMNS} FROM lei_metadata m WHERE m.lei = ?",
                 (lei,)
             ).fetchone()
 
