@@ -28,6 +28,7 @@ class SqliteCompanyRepository(BaseSqliteRepository, CompanyRepository):
 
     def __init__(self, db_path):
         BaseSqliteRepository.__init__(self, db_path)
+
    
     def get_by_isin(self, isin: str) -> Optional[Company]:
         """

@@ -69,6 +69,7 @@ class EnrichmentService:
 
             if company.has_sector_data:
                 enriched_companies.append(company)
+                continue
             
             wikidata_data = self._query_wikidata(company.lei)
 

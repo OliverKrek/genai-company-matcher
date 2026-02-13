@@ -3,11 +3,8 @@ from typing import List, Tuple, Union
 import re
 import unicodedata
 from core.models import Company
-from core.interfaces import CompanyRepository, VectorIndex
+from core.interfaces import VectorIndex
 from core.enrichment_service import EnrichmentService
-from infrastructure.sqlite_repository import SqliteCompanyRepository
-from infrastructure.vector_repository import ChromaVectorRepository
-from infrastructure.utils import query_wikidata
 
 ISIN_REGEX = re.compile(r'^[A-Z]{2}[A-Z0-9]{9}[0-9]$')
 """
@@ -21,7 +18,6 @@ There is a minimal public interface that exposes the core functionality:
     - insert_embedding()
     - find_matches()
 
-TODO: Fix the issue with list vs no list in insert embeddings. Probably necessary to change the interface of the vector repo
 """
 
 class MatchingService:
@@ -104,15 +100,14 @@ class MatchingService:
         isin = self._validate_normalize_isin(isin)
         company = self.enrichment_service.get_enriched_company_by_isin(isin)
         self.vector_repo.upsert_embedding([company])
-        print(f"Succesfully stored embedding of: {isin}")
+        print(f"Succesfully stored embedding of: {company.legal_name}")
 
     def _insert_embeddings(self, isins: List[str]) -> None:
         isins = [self._validate_normalize_isin(isin) for isin in isins]
         companies = self.enrichment_service.get_enriched_companies_by_isin(isins)
-        print(companies)
         for company in companies:
             self.vector_repo.upsert_embedding([company])
-            print(f"Successfully stored embedding of : {company}")
+            print(f"Successfully stored embedding of : {company.legal_name}")
     
     def _validate_normalize_isin(self, isin: str) -> str:
         """
