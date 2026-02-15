@@ -1,20 +1,37 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build-meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = "genai_matcher"
+name = "exposure-ai"
 version = "0.1.0"
-description = "A matching tool to find similar companies based on GenAI embeddings."
+description = "Add your description here"
+readme = "README.md"
 requires-python = ">=3.12"
-# Add any dependencies you have here:
 dependencies = [
-    "pandas",
+    "pandas>=2.3.3",
+    "requests>=2.32.5",
+    "chromadb",
+    "sentence-transformers",
+    "torch",
+    "pytest",
+    "python-dotenv"
 ]
 
-[tool.setuptools]
-# This is the "magic" part that tells Python where the code is
-package-dir = {"" = "src"}
+[dependency-groups]
+dev = [
+    "pytest",
+]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/core", "src/infrastructure", "src/cli"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+torchaudio = [{ index = "pytorch-cpu" }]
