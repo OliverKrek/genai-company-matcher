@@ -13,6 +13,6 @@ class BaseSqliteRepository:
 
     def _conn(self) -> sqlite3.Connection:
         """Return a new SQLite connection to the configured database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, uri=True)
         conn.row_factory = sqlite3.Row
         return conn

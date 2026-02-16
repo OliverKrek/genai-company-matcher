@@ -4,7 +4,7 @@ from core.models import Company
 def test_has_sector_data_is_false_initially():
     company = Company(lei="123", registration_status="active", entity_status="active",
                      legal_name="Test Co", city="Zurich", country="CH", category="Finance")
-    assert company.has_sector_data() is False
+    assert company.has_sector_data is False
 
 def test_enrich_updates_state():
     company = Company(lei="123", registration_status="active", entity_status="active",
