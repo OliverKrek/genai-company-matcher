@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "genai_matcher"
 version = "0.1.0"
@@ -8,6 +12,8 @@ dependencies = [
     "requests",
     "python-dotenv",
     "chromadb",
+    "sentence-transformers",
+    "torch",
 ]
 
 [project.optional-dependencies]
@@ -15,10 +21,21 @@ dev = [
     "pytest",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/core", "src/infrastructure", "src/cli"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[tool.uv]
-dev-dependencies = [
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[dependency-groups]
+dev = [
     "pytest",
 ]
