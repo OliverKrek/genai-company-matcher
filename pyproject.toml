@@ -1,20 +1,24 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build-meta"
-
 [project]
 name = "genai_matcher"
 version = "0.1.0"
 description = "A matching tool to find similar companies based on GenAI embeddings."
 requires-python = ">=3.12"
-# Add any dependencies you have here:
 dependencies = [
     "pandas",
+    "requests",
+    "python-dotenv",
+    "chromadb",
 ]
 
-[tool.setuptools]
-# This is the "magic" part that tells Python where the code is
-package-dir = {"" = "src"}
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+]
